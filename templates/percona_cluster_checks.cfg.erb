@@ -1,0 +1,4 @@
+command[check_percona_primarycluster]=sudo <%= @_script_path %> -x wsrep_cluster_status -C == -T str -c non-Primary
+command[check_percona_localstate]=sudo <%= @_script_path %> -x wsrep_local_state_comment -C '!=' -T str -w Synced
+command[check_percona_clustersize]=sudo <%= @_script_path %> -x wsrep_cluster_size -C '<=' -w <%= @cluster_size_warning %> -c <%= @cluster_size_critical %> 
+command[check_percona_flowcontrol]=sudo <%= @_script_path %> -x wsrep_flow_control_paused -w 0.1 -c 0.9

@@ -1,0 +1,10 @@
+# Managed by Puppet
+# Log specific settings
+
+##### LOGGING #####
+[mysqld]
+log_error                      = /var/log/mysql/error.log
+log_queries_not_using_indexes  = 0
+long_query_time                = 10.0
+slow_query_log                 = 1
+slow_query_log_file            = /var/log/mysql/slow.log

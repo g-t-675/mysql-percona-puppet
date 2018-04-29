@@ -1,0 +1,32 @@
+#!/bin/bash
+: 'Simple backup
+
+This is a little script for making a simple database backup using xtrabackup.
+
+No fancy features are included like incrementals, offsite, encryption. Other 
+possible improvements might be to limit the required permissions more.
+
+The script does save galera (cluster) status information.
+
+For now though the easiest way to do this is running it as root and including
+root database credentials. :)
+
+Use simple_restore.sh as the restore script.
+
+'
+
+backup_root_dir='/opt/backup/database'
+timestamp=`date +%Y%m%dT%H%M%S`
+db_user='<%= @db_user %>'
+db_password='<%= @db_password %>'
+backup_bin='/usr/bin/innobackupex'
+use_galera=' --galera'
+# use_compact=' --compact'
+# use_compress=' --compress'
+use_compress='' # no compression for now
+
+mkdir -p ${backup_root_dir}
+
+${backup_bin} \
+	--user=${db_user} --password=${db_password} \
+	${use_galera} ${use_compact} ${use_compress} ${backup_root_dir}

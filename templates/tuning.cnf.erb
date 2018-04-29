@@ -1,0 +1,51 @@
+# Managed by Puppet
+# MySQL server tuning configuration, inspired on ...
+# ... Percona Configuration Wizard (http://tools.percona.com/)
+#
+# TODO: make settings dynamic with reasonable defaults
+
+[mysqld]
+
+##### MyISAM #####
+# MyISAM should be hardly used, except for system tables. 
+key_buffer_size         = 32M           # index buffer shared over all threads
+read_buffer_size        = 1M            # per thread for sequential scans
+read_rnd_buffer_size    = 1M            # per session buffer used for sorting
+myisam_recover<% if @package_name == 'percona-server-server-5.7' then -%>_options<% end -%>          = FORCE,BACKUP  # In case of a crash, force a recovery, but make a backup just in case
+
+##### SAFETY #####
+max_allowed_packet      = 128M
+max_connect_errors      = 1000000
+
+##### CACHES AND LIMITS #####
+tmp_table_size          = <% if (@tuning and @tuning.has_key?('tmp_table_size')) then -%><%= @tuning['tmp_table_size'] %><% else %>32M<% end -%>       # Default 16M, limited by max_heap_table_size
+max_heap_table_size     = <% if (@tuning and @tuning.has_key?('max_heap_table_size')) then -%><%= @tuning['max_heap_table_size'] %><% else %>32M<% end -%>       # Default 16M
+max_connections         = <% if (@tuning and @tuning.has_key?('max_connections')) then -%><%= @tuning['max_connections'] %>
+<% else %>500
+<% end -%>
+thread_cache_size       = 50
+open_files_limit        = 65535
+table_definition_cache  = 4096
+table_open_cache        = <% if (@tuning and @tuning.has_key?('table_open_cache')) then -%><%= @tuning['table_open_cache'] %>
+<% else %>4096
+<% end -%>
+connect_timeout         = <% if (@tuning and @tuning.has_key?('connect_timeout')) then -%><%= @tuning['connect_timeout'] %><% else %>10<% end -%>
+
+# Query caching isn't supported in a cluster
+# query_cache_type        = 1         # Enable (select) query caching ...
+# query_cache_limit       = 1M        # ... up to 1M sized queries ...
+# query_cache_size        = 32M       # ... up to a maximum combined size of 32M.
+
+##### INNODB #####
+innodb_buffer_pool_size        = <% if (@tuning and @tuning.has_key?('innodb_buffer_pool_size')) then -%><%= @tuning['innodb_buffer_pool_size'] %><% else %>64M<% end -%>     # Should depend on $memorysize, wether this node is dedicated to MySQL and normal memory overhead
+innodb_flush_method            = O_DIRECT   # O_DIRECT or O_DSYNC, direct might be better on raid, dsync might be better on a SAN
+innodb_log_files_in_group      = 2
+innodb_log_file_size           = 256M   # Default is 5M, a larger value implies less IO, but slower recovery after a crash, since reliability is high due to clustering, this can be quite high in our case, THIS VALUE MAY NOT CHANGES ONCE SET
+innodb_flush_log_at_trx_commit = 2
+innodb_file_per_table          = 1
+innodb_file_format             = Barracuda  # Latest file format, requires innodb_file_per_table and allows for advanced InnoDB features such as table compression
+
+##### GENERAL #####
+
+performance_schema = <% if (@tuning and @tuning.has_key?('performance_schema')) then -%><%= @tuning['performance_schema'] %><% else %>off<% end -%>  # Caution, enabling the performance schema will take about 1/2G extra memory
+

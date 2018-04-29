@@ -1,0 +1,23 @@
+# Managed by Puppet
+# Specific Percona XtraDB settings for this cluster
+#
+# http://www.codership.com/wiki/doku.php?id=mysql_options_0.8
+# http://www.codership.com/wiki/doku.php?id=configuration_tips
+# Currently (Oct 2012) mostly based on a 'getting started' document.
+
+[mysqld_safe]
+
+# Try and see if any of my partners are up 
+# Please note, the portnumbers are required, leaving them out will lead to unexpected behaviour
+wsrep_urls=<% @cluster['nodes'].keys.each do |partner| -%>gcomm://<%= @cluster['nodes'][partner]['gcomm_addr'] %>:<%= @cluster['nodes'][partner]['gcomm_port'] %>,<% end -%><% if @cluster['reform'] == true -%>gcomm://<% end -%>
+
+[mysqld]
+
+# The name of the cluster
+wsrep_cluster_name=<%= @cluster['name'] %>
+
+# The SnapShot Transfer details
+wsrep_sst_method=<%= @cluster['sst_method'] %>
+<% if @cluster['sst_auth'] %>wsrep_sst_auth=<%= @cluster['sst_auth'] %><% end %>
+
+<% if @cluster['wsrep_provider_options'] %>wsrep_provider_options=<%= @cluster['wsrep_provider_options'] %><% end %>

@@ -1,0 +1,10 @@
+# Managed by Puppet
+# Specific Percona XtraDB settings for this node in the cluster "<%= @cluster['name'] %>"
+
+[mysqld]
+
+# The name of the node
+wsrep_node_name=<%= @node['name'] %>
+
+# Number of slave threads, recommendations range from 1 per core to 4 per core and higher.
+wsrep_slave_threads=<%= Integer(@processorcount) * 4 %>

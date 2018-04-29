@@ -1,0 +1,119 @@
+#!/bin/bash
+usage='Simple restore
+
+Usage is something like: 
+	./simple_restore.sh 2015-01-06_14-12-07
+
+'
+
+backup=$1 # the backup subdir to restore
+
+backup_root_dir='/opt/backup/database' # the dir the backup can be found
+restore_backup_dir='/opt/backup/database_restore' # the dir to backup the current state of affairs to
+timestamp=`date +%Y%m%dT%H%M%S`
+backup_bin='/usr/bin/innobackupex'
+use_memory='<%= @use_memory %>' # how much memory the restore process may take
+servers=(<% @db_servers.each do |server| -%><%= server %> <% end -%>)
+datadir=`mysqld --verbose --help 2>&1 | egrep 'datadir\s+' | awk '{print $2}'`
+
+# things to check in advance
+# - is the datadir a recognized value
+# - is mysql really stopped
+# - does the backup dir in question exist
+# - if possible, check if the other db servers in the cluster are stopped too
+# - guesstimate if there is enough space for the procedure
+
+if [ "$datadir" == "/var/lib/mysql/" ] || [ "$datadir" == "/var/lib/percona-server/" ] ; then
+    echo "MySQL's datadir is '${datadir}', and that is a valid value."
+else
+    echo "ERROR, MySQL's datadir is '${datadir}', and that is not value I recognize."
+    exit 1
+fi
+
+if [ -z "$backup" ]; then
+	echo "ERROR: You did not give me a valid backup to restore as my first parameter"
+    echo "Something like 'simple_restore.sh 2015-01-07_10-38-17'"
+	echo 
+	echo "Perhaps you can pick one from '${backup_root_dir}':"
+	ls ${backup_root_dir}
+	exit 1
+fi
+
+if [ ! -d ${backup_root_dir}/${backup} ]; then
+	echo "ERROR: I cannot find the directory for '${backup}'"
+	echo 
+	echo "Perhaps you can pick one from '${backup_root_dir}':"
+	ls ${backup_root_dir}
+	exit 1
+fi
+
+if pgrep mysqld > /dev/null 2>&1; then
+    echo "MySQL still seems to be running so I am cowardly refusing to proceed."
+    exit 1
+fi
+
+for server in "${servers[@]}"
+do
+	echo "Checking if MySQL is still running on ${server}..."
+	if nc -z ${server} 4567 ; then
+		echo "MySQL still seems to be running on ${server} so I am cowardly refusing to proceed."
+		exit 1
+	fi
+done
+
+# how much space does a restore require? Let's assume about N times the size of the backup of additional space?
+backup_size=`du -s ${backup_root_dir}/${backup} | awk '{print $1}'`
+available_space=`df /var/lib/mysql/ --output=avail | tail -n 1`
+safety_factor=3
+margin=`expr $backup_size \* $safety_factor`
+
+if [ "$margin" -gt "$available_space" ] ; then
+	echo "WARNING: It appears there is limited space available on the server."
+	echo "You may want to clean up a bit before trying a restore."
+	echo
+	echo "Press ^C to quit or enter to continue"
+	read
+fi
+
+# All seems well, let's inform the user what we are about to do
+echo 'Everything I checked seems to be okay for a restore. I am about to:'
+echo "- prepare the backup at '${backup_root_dir}/${backup}' so it can be restored"
+echo "- move the current content of '/var/lib/mysql' to '${restore_backup_dir}/backup_before_restore_of_${timestamp}'"
+echo "- copy back the content of the backup to /var/lib/mysql"
+echo "- fix some file permissions"
+echo "- ask you if I may start the MySQL service again"
+echo
+echo "Press ^C to quit or enter to continue"
+read
+
+# Show summary of what the script is going to do and what the implications are + ask for confirmation
+
+# prepare the backup for restoring
+echo "### Preparing the backup ###"
+${backup_bin} --use-memory=${use_memory} --apply-log --rebuild-indexes ${backup_root_dir}/${backup}
+
+# actually run it twice...? ;)
+#echo "### Preparing the backup again ;) ###"
+#${backup_bin} --use-memory=${use_memory} --apply-log --rebuild-indexes ${backup_root_dir}/${backup}
+
+# move the old data out of the way
+echo "### Moving the old data out of the way ###"
+mkdir -p ${restore_backup_dir}/backup_before_restore_of_${timestamp}
+mv ${datadir}* ${restore_backup_dir}/backup_before_restore_of_${timestamp}
+
+echo "### Copying back the content of the backup ###"
+${backup_bin} --copy-back ${backup_root_dir}/${backup}
+
+echo "### Fixing some file permissions ###"
+chown -R mysql:mysql ${datadir}
+chmod -R o-rwx ${datadir}
+
+echo "Backup should now be restored. You may want to clean up the content of '${restore_backup_dir}'."
+echo "Also, you may want to startup up mysql on the other server(s) too, plus restart applications"
+echo "which use this database cluster."
+echo
+echo "Do you now want me to start MySQL again?"
+echo "Press ^C to quit or enter to continue (starting MySQL)"
+read
+
+service mysql start
